@@ -5,6 +5,8 @@ from time import sleep
 from gi.repository import GObject as gobject
 gobject.threads_init()
 
+import sys
+
 class _IdleObject(gobject.GObject):
     """
     Override gobject.GObject to always emit signals in the main thread
@@ -23,18 +25,15 @@ class Main(threading.Thread, _IdleObject):
     to the GUI.
     """
     __gsignals__ =  { 
-        "key-map-recording-progress": (
-            gobject.SIGNAL_RUN_LAST, gobject.TYPE_NONE, [gobject.TYPE_INT]
-        ),
-        "get-ready-state": (
-            gobject.SIGNAL_RUN_LAST, gobject.TYPE_NONE, []
-        ),
         "open-dialog": (
             gobject.SIGNAL_RUN_LAST, gobject.TYPE_NONE, [gobject.TYPE_STRING, gobject.TYPE_INT, gobject.TYPE_STRING]
         ),
         "open-exception-dialog": (
             gobject.SIGNAL_RUN_LAST, gobject.TYPE_NONE, [gobject.TYPE_STRING, gobject.TYPE_STRING]
         ),
+        "update-gui": (
+            gobject.SIGNAL_RUN_LAST, gobject.TYPE_NONE, [gobject.TYPE_STRING]
+        )
     }
 
     def __init__(self):
@@ -44,10 +43,9 @@ class Main(threading.Thread, _IdleObject):
         self.gui = None
         self.lastPreset = copy.deepcopy(config.currentPreset)
         self.lastPresetPath = None
-        self.connect("key-map-recording-progress", self._on_key_map_recording_progress)
-        self.connect("get-ready-state", self._get_ready_state)
         self.connect("open-dialog", self._openDialog)
         self.connect("open-exception-dialog", self._openExceptionDialog)
+        self.connect("update-gui", self._update_gui)
 
     # set the gui object
     def setGui(self, win):
@@ -62,19 +60,25 @@ class Main(threading.Thread, _IdleObject):
         while not self.cancelled:
             try:
                 if config.state == config.RECORDING_MOUSE_SEQ:
-                    mouse_sequence.start_recording()
+                    mouse_sequence.start_recording(self)
+                    config.state = config.TASK_JUST_STOPPED
                 elif config.state == config.PLAYING_MOUSE_SEQ:
-                    mouse_sequence.play_sequence()
-                    if config.state != config.READY: # we can here stop execution from inside
-                        self.emit("get-ready-state")
+                    mouse_sequence.play_sequence(self)
+                    config.state = config.TASK_JUST_STOPPED
                 elif config.state == config.RECORDING_KBM_CONNECTIONS:
                     key_map.start_recording(self)
+                    config.state = config.TASK_JUST_STOPPED
                 elif config.state == config.PLAYING_KBM_CONNECTIONS:
-                    key_map.play_kbm_map()
-                    if config.state != config.READY: # we can here stop execution from inside
-                        self.emit("get-ready-state")
+                    key_map.play_kbm_map(self)
+                    config.state = config.TASK_JUST_STOPPED
+                if config.state == config.TASK_JUST_STOPPED:
+                    self.emit('update-gui', "Thinking about life...")
+                    sleep(1.0) # be sure keyboard or mouse event queue is ready
+                    config.state = config.READY
+                    self.emit('update-gui', "Ready")
             except (config.InvalidPreset, TypeError):
-                self.emit("get-ready-state")
+                config.state = config.READY
+                self.emit('update-gui', "Ready")
                 self.emit("open-dialog",
                     "Wrong preset format",
                     self.gui.Gtk.MessageType.ERROR,
@@ -82,18 +86,15 @@ class Main(threading.Thread, _IdleObject):
                 config.resetCurrentPreset(None)
             except Exception as exc_obj:
                 import traceback
-                self.emit("get-ready-state")
+                config.state = config.READY
+                self.emit('update-gui', "Ready")
                 self.emit("open-exception-dialog",
                     "Unknown error",
                     ''.join(traceback.format_exception(None, exc_obj, exc_obj.__traceback__)
                     )
                 )
             sleep(0.1) # keeping cpu calm :P
-
-    # change state to READY and update gui
-    def _get_ready_state(self, thread):
-        config.state = config.READY
-        getattr(self.gui, 'modifyWidgetsWithState_' + config.state, lambda: None)()
+        #print(sys.exc_info())
 
     # open dialog
     def _openDialog(self, thread, title, messageType, text):
@@ -111,23 +112,17 @@ class Main(threading.Thread, _IdleObject):
 
     # quit callback
     def _quit(self, sender, event):
-        self.emit("get-ready-state")
         if self.gui.quit_cb(self.lastPreset != config.currentPreset):
             self.stop()
             self.gui.Gtk.main_quit()
         else:
             return True
 
-    # key-map-recording-progress signal handler (update the gui status bar)
-    def _on_key_map_recording_progress(self, thread, progress):
-        if(progress == config.WAITING_FOR_KEYBOARD):
-            self.gui.statusBar.pop(self.gui.context_id)
-            self.gui.statusBar.push(self.gui.context_id, "Waiting for keyboard input")
-        else:
-            self.gui.statusBar.pop(self.gui.context_id)
-            self.gui.statusBar.push(self.gui.context_id, "Waiting for mouse input")
-
-
+    # update gui widgets and set status bar text
+    def _update_gui(self, thread, text):
+        getattr(self.gui, "modifyWidgetsWithState_"+config.state, lambda: None)()
+        self.gui.statusBar.pop(self.gui.context_id)
+        self.gui.statusBar.push(self.gui.context_id, text)
 
 if __name__ == "__main__":
     main = Main()

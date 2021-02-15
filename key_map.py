@@ -12,19 +12,20 @@ def start_recording(runningThread):
     with keyboard.Events() as events:
         while config.state == config.RECORDING_KBM_CONNECTIONS:
              # Block at most 0.01 second
-            event = events.get(0.01)
+            event = events.get(timeout=0.01)
             if event is not None:
                 if type(event) == keyboard.Events.Press:
                     on_recording_press(event.key)
     mainThread = None
 
+
 # play the kbm mapping
-def play_kbm_map():
+def play_kbm_map(runningThread):
     if(len(config.currentPreset['kbmMap']) > 0):
         with keyboard.Events() as events:
             while config.state == config.PLAYING_KBM_CONNECTIONS:
                 # Block at most 0.01 second
-                event = events.get(0.01)
+                event = events.get(timeout=0.01)
                 if event is not None:
                     if type(event) == keyboard.Events.Press:
                         on_playing_press(event.key)
@@ -48,11 +49,11 @@ def on_playing_release(key):
 def on_recording_press(key):
     global mainThread
     # map key to the next mouse click
-    mainThread.emit('key-map-recording-progress', config.WAITING_FOR_MOUSE)
+    mainThread.emit('update-gui', "Waiting for mouse input")
     with mouse.Events() as events:
         while config.state == config.RECORDING_KBM_CONNECTIONS:
              # Block at most 0.01 second
-            event = events.get(0.01)
+            event = events.get(timeout=0.01)
             if event is not None:
                 if type(event) == mouse.Events.Click:
                     on_click_map_key(event, key)
@@ -64,5 +65,5 @@ def on_click_map_key(event, key_to_map):
     global mainThread
     # we save the mouse click 
     config.currentPreset['kbmMap'][key_to_map] = [event.button, event.x, event.y]
-    mainThread.emit('key-map-recording-progress', config.WAITING_FOR_KEYBOARD)
+    mainThread.emit('update-gui', "Waiting for keyboard input")
     sleep(0.05)

@@ -6,14 +6,8 @@ RECORDING_MOUSE_SEQ = 'recording_mouse_seq'
 PLAYING_MOUSE_SEQ = 'playing_mouse_seq'
 RECORDING_KBM_CONNECTIONS = 'recording_kbm_connections'
 PLAYING_KBM_CONNECTIONS = 'playing_kbm_connections'
+TASK_JUST_STOPPED = 'task_just_stopped'
 state = READY
-
-
-"""
-Handling kbm map recording messages for gui status bar requires these constants
-"""
-WAITING_FOR_KEYBOARD = 0
-WAITING_FOR_MOUSE = 1
 
 
 """

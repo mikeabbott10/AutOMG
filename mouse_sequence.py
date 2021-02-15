@@ -6,13 +6,14 @@ tic = 0
 keyboard_listener = None
 
 # start recording a mouse sequence
-def start_recording():
+def start_recording(runningThread):
     global tic
     tic = time()
+    runningThread.gui.isReady = True
     with mouse.Events() as events:
         while config.state == config.RECORDING_MOUSE_SEQ:
              # Block at most 0.01 second
-            event = events.get(0.01)
+            event = events.get(timeout=0.01)
             if event is not None:
                 if type(event) == mouse.Events.Move:
                     on_move(event)
@@ -28,10 +29,9 @@ def start_recording():
             del config.currentPreset['mouseSeq']['recordedEvents'][i]
             del config.currentPreset['mouseSeq']['recordedTimes'][i]
         i-=1
-    sleep(0.05)
-
+        
 # play the mouse sequence
-def play_sequence():
+def play_sequence(runningThread):
     global keyboard_listener
     if(len(config.currentPreset['mouseSeq']['recordedEvents']) > 0):
         MouseCtr = mouse.Controller
@@ -43,7 +43,7 @@ def play_sequence():
                     for tempo in config.currentPreset['mouseSeq']['recordedTimes']:
                         sleep(tempo)
                         # Block at most 0.01 second
-                        event = events.get(0.01)
+                        event = events.get(timeout=0.01)
                         if event is not None and event.key == keyboard.Key.esc:
                             return
                         else:

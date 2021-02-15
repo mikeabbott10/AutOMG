@@ -70,7 +70,7 @@ class AutOMGWindow(Gtk.Window):
         self.MainProgram = MainProgram # the non-gui thread
         self.set_resizable(False)
         self.set_position(Gtk.WindowPosition.CENTER)
-
+    
         _buildMenu(self)
 
         self._mainBox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
@@ -194,25 +194,25 @@ class AutOMGWindow(Gtk.Window):
         if btn.get_active():
             config.state = config.RECORDING_MOUSE_SEQ
             btn.set_label("Stop")
-        else:
-            config.state = config.READY
+            self.modifyWidgetsWithState_recording_mouse_seq()
+        elif config.state != config.READY:
+            config.state = config.TASK_JUST_STOPPED
             btn.set_label("Record")
-        getattr(self, 'modifyWidgetsWithState_' + config.state, lambda: None)()
     def _on_playMouseSeq_switch_click(self, switch, gparam):
         if switch.get_active():
             config.state = config.PLAYING_MOUSE_SEQ
-        else:
-            config.state = config.READY
-        getattr(self, 'modifyWidgetsWithState_' + config.state, lambda: None)()
+            self.modifyWidgetsWithState_playing_mouse_seq()
+        elif config.state != config.READY:
+            config.state = config.TASK_JUST_STOPPED
     # kbm mapping related buttons and switch click callbacks
     def _on_recordKeyboardToMouse_click(self, btn):
         if btn.get_active():
             config.state = config.RECORDING_KBM_CONNECTIONS
             btn.set_label("Stop")
-        else:
-            config.state = config.READY
+            self.modifyWidgetsWithState_recording_kbm_connections()
+        elif config.state != config.READY:
+            config.state = config.TASK_JUST_STOPPED
             btn.set_label("Record map")
-        getattr(self, 'modifyWidgetsWithState_' + config.state, lambda: None)()
     def _on_kbm_map_button_click(self, btn):
         txt = '  '.join(f'{key}' for key in config.currentPreset['kbmMap'].keys())
         self.openDialog(
@@ -223,12 +223,13 @@ class AutOMGWindow(Gtk.Window):
     def _on_playKeyboardToMouseSwitch_click(self, switch, gparam):
         if switch.get_active():
             config.state = config.PLAYING_KBM_CONNECTIONS
-        else:
-            config.state = config.READY
-        getattr(self, 'modifyWidgetsWithState_' + config.state, lambda: None)()
+            self.modifyWidgetsWithState_playing_kbm_connections()
+        elif config.state != config.READY:
+            config.state = config.TASK_JUST_STOPPED
 
     # disable or enable widgets related
     def modifyWidgetsWithState_recording_mouse_seq(self):
+        self._recordMouseSeq_box.set_sensitive(True)
         self._menu.set_sensitive(False)
         self._record_kbm_box.set_sensitive(False)
         self._playKBM_box.set_sensitive(False)
@@ -236,6 +237,7 @@ class AutOMGWindow(Gtk.Window):
         self.statusBar.pop(self.context_id)
         self.statusBar.push(self.context_id, "Recording mouse events")
     def modifyWidgetsWithState_playing_mouse_seq(self):
+        self._playMSeq_box.set_sensitive(True)
         self._menu.set_sensitive(False)
         self._recordMouseSeq_box.set_sensitive(False)
         self._record_kbm_box.set_sensitive(False)
@@ -243,6 +245,7 @@ class AutOMGWindow(Gtk.Window):
         self.statusBar.pop(self.context_id)
         self.statusBar.push(self.context_id, "Playing mouse events")
     def modifyWidgetsWithState_recording_kbm_connections(self):
+        self._record_kbm_box.set_sensitive(True)
         self._menu.set_sensitive(False)
         self._recordMouseSeq_box.set_sensitive(False)
         self._playMSeq_box.set_sensitive(False)
@@ -250,6 +253,7 @@ class AutOMGWindow(Gtk.Window):
         self.statusBar.pop(self.context_id)
         self.statusBar.push(self.context_id, "Waiting for keyboard input")
     def modifyWidgetsWithState_playing_kbm_connections(self):
+        self._playKBM_box.set_sensitive(True)
         self._menu.set_sensitive(False)
         self._recordMouseSeq_box.set_sensitive(False)
         self._record_kbm_box.set_sensitive(False)
@@ -262,10 +266,14 @@ class AutOMGWindow(Gtk.Window):
         self._playMSeq_box.set_sensitive(True)
         self._record_kbm_box.set_sensitive(True)
         self._playKBM_box.set_sensitive(True)
-        self.statusBar.pop(self.context_id)
-        self.statusBar.push(self.context_id, "Ready")
         self._playMouseSeq_switch.set_active(False)
         self._playKeyboardToMouse_switch.set_active(False)
+    def modifyWidgetsWithState_task_just_stopped(self):
+        self._menu.set_sensitive(False)
+        self._recordMouseSeq_box.set_sensitive(False)
+        self._record_kbm_box.set_sensitive(False)
+        self._playMSeq_box.set_sensitive(False)
+        self._playKBM_box.set_sensitive(False)
 
     # menu bar callbacks
     def _save_preset(self, widget):
@@ -299,12 +307,11 @@ class AutOMGWindow(Gtk.Window):
             dialog.destroy()
             if(filepath[-4:]!=".omg"):
                 filepath += ".omg"
-            else:
-                import pickle
-                self.MainProgram.lastPreset = copy.deepcopy(config.currentPreset) # update last preset 
-                self.MainProgram.lastPresetPath = filepath # update last preset path
-                with open(filepath, 'wb') as fp:
-                    pickle.dump(config.currentPreset, fp, protocol=pickle.HIGHEST_PROTOCOL)
+            import pickle
+            self.MainProgram.lastPreset = copy.deepcopy(config.currentPreset) # update last preset 
+            self.MainProgram.lastPresetPath = filepath # update last preset path
+            with open(filepath, 'wb') as fp:
+                pickle.dump(config.currentPreset, fp, protocol=pickle.HIGHEST_PROTOCOL)
         elif response == Gtk.ResponseType.CANCEL:
             #print("Cancel clicked")
             dialog.destroy()
