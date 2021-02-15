@@ -49,7 +49,7 @@ def _buildMenu(window):
     about_item.set_submenu(aboutmenu)
 
     github_item = Gtk.MenuItem("This project on GitHub")
-    github_item.connect("activate", _launchBrowser, "https://www.github.com")
+    github_item.connect("activate", _launchBrowser, "https://github.com/mikeabbott10/AutOMG")
     aboutmenu.append(github_item)
     aboutUs_item = Gtk.MenuItem("Who we are")
     aboutUs_item.connect("activate", _launchBrowser, "https://www.donow.cloud")
