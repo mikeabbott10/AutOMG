@@ -1,68 +1,83 @@
 from pynput import mouse, keyboard
 from time import sleep, time
 import config
+import threading
 
 tic = 0
-keyboard_listener = None
 
 # start recording a mouse sequence
 def start_recording(runningThread):
     global tic
     tic = time()
-    runningThread.gui.isReady = True
-    with mouse.Events() as events:
-        while config.state == config.RECORDING_MOUSE_SEQ:
-             # Block at most 0.01 second
-            event = events.get(timeout=0.01)
-            if event is not None:
-                if type(event) == mouse.Events.Move:
-                    on_move(event)
-                elif type(event) == mouse.Events.Click:
-                    on_click(event)
-    # remove the click on Stop button from the sequence
-    i = len(config.currentPreset['mouseSeq']['recordedEvents']) - 1
-    cnt = 0
-    while i>=0 and cnt<2:
-        if (config.currentPreset['mouseSeq']['recordedEvents'][i][0] and 
-                config.currentPreset['mouseSeq']['recordedEvents'][i][1] == mouse.Button.left):
-            cnt+=1
-            del config.currentPreset['mouseSeq']['recordedEvents'][i]
-            del config.currentPreset['mouseSeq']['recordedTimes'][i]
-        i-=1
+    try:
+        with mouse.Events() as events:
+            while config.state == config.RECORDING_MOUSE_SEQ:
+                # Block at most 0.01 second
+                event = events.get(timeout=0.01)
+                if event is not None:
+                    if type(event) == mouse.Events.Move:
+                        on_move(event)
+                    elif type(event) == mouse.Events.Click:
+                        on_click(event)
+            # remove the click on Stop button from the sequence
+            i = len(config.currentPreset['mouseSeq']['recordedEvents']) - 1
+            cnt = 0
+            while i>=0 and cnt<2:
+                if (config.currentPreset['mouseSeq']['recordedEvents'][i][0] and 
+                        config.currentPreset['mouseSeq']['recordedEvents'][i][1] == mouse.Button.left):
+                    cnt+=1
+                    del config.currentPreset['mouseSeq']['recordedEvents'][i]
+                    del config.currentPreset['mouseSeq']['recordedTimes'][i]
+                i-=1
+            raise mouse.Listener.StopException()
+    except mouse.Listener.StopException:
+        # we need to raise these exceptions because of a listener.stop() bug with Xorg
+        pass
         
 # play the mouse sequence
 def play_sequence(runningThread):
-    global keyboard_listener
     if(len(config.currentPreset['mouseSeq']['recordedEvents']) > 0):
-        MouseCtr = mouse.Controller
-        cnt = 0
-        with keyboard.Events() as events:
-            while config.state == config.PLAYING_MOUSE_SEQ:
-                if config.mouse_sequence_playingTimes==0 or cnt<config.mouse_sequence_playingTimes:
-                    i = 0
-                    for tempo in config.currentPreset['mouseSeq']['recordedTimes']:
-                        sleep(tempo)
-                        # Block at most 0.01 second
-                        event = events.get(timeout=0.01)
-                        if event is not None and event.key == keyboard.Key.esc:
-                            return
-                        else:
-                            isButtonEvent = config.currentPreset['mouseSeq']['recordedEvents'][i][0]
-                            if(isButtonEvent): # mouse button event
-                                button, press, x, y = config.currentPreset['mouseSeq']['recordedEvents'][i][1:]
-                                MouseCtr().position = (x,y)
-                                if(press): # button was pressed
-                                    MouseCtr().press(button)
-                                else:
-                                    MouseCtr().release(button)
-                            else: # mouse movement event
-                                x, y = config.currentPreset['mouseSeq']['recordedEvents'][i][1:]
-                                MouseCtr().position = (x,y)
-                            i+=1
-                    sleep(0.05)
-                    if(config.mouse_sequence_playingTimes!=0):
-                        cnt+=1
-                else: break
+        threading.Thread(target=play_recorded_mouse_sequence).start()
+        try:
+            with keyboard.Events() as events:
+                while config.state == config.PLAYING_MOUSE_SEQ:
+                    # Block at most 0.01 second
+                    event = events.get(timeout=0.01)
+                    if event is not None and event.key == keyboard.Key.esc:
+                        break
+                raise keyboard.Listener.StopException()
+        except keyboard.Listener.StopException:
+            # we need to raise these exceptions because of a listener.stop() bug with Xorg
+            pass
+    
+
+def play_recorded_mouse_sequence():
+    MouseCtr = mouse.Controller
+    cnt = 0
+    while config.state == config.PLAYING_MOUSE_SEQ:
+        if config.mouse_sequence_playingTimes==0 or cnt<config.mouse_sequence_playingTimes:
+            i = 0
+            for tempo in config.currentPreset['mouseSeq']['recordedTimes']:
+                sleep(tempo)
+                if config.state != config.PLAYING_MOUSE_SEQ:
+                    return
+                isButtonEvent = config.currentPreset['mouseSeq']['recordedEvents'][i][0]
+                if(isButtonEvent): # mouse button event
+                    button, press, x, y = config.currentPreset['mouseSeq']['recordedEvents'][i][1:]
+                    MouseCtr().position = (x,y)
+                    if(press): # button was pressed
+                        MouseCtr().press(button)
+                    else:
+                        MouseCtr().release(button)
+                else: # mouse movement event
+                    x, y = config.currentPreset['mouseSeq']['recordedEvents'][i][1:]
+                    MouseCtr().position = (x,y)
+                i+=1
+            sleep(0.05)
+            if(config.mouse_sequence_playingTimes!=0):
+                cnt+=1
+        else: 
+            config.state = config.READY
 
 # mouse callbacks
 def on_move(event):

@@ -6,7 +6,6 @@ RECORDING_MOUSE_SEQ = 'recording_mouse_seq'
 PLAYING_MOUSE_SEQ = 'playing_mouse_seq'
 RECORDING_KBM_CONNECTIONS = 'recording_kbm_connections'
 PLAYING_KBM_CONNECTIONS = 'playing_kbm_connections'
-TASK_JUST_STOPPED = 'task_just_stopped'
 state = READY
 
 
@@ -37,7 +36,7 @@ def resetCurrentPreset(widget):
         },
         'kbmMap': {}
     }
-
+    
 class InvalidPreset(Exception): pass
 
 # check if data is a valid preset

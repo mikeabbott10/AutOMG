@@ -191,28 +191,15 @@ class AutOMGWindow(Gtk.Window):
 
     # mouse sequence related buttons and switch click callbacks
     def _on_recordMouseSequence_click(self, btn):
-        if btn.get_active():
-            config.state = config.RECORDING_MOUSE_SEQ
-            btn.set_label("Stop")
-            self.modifyWidgetsWithState_recording_mouse_seq()
-        elif config.state != config.READY:
-            config.state = config.TASK_JUST_STOPPED
-            btn.set_label("Record")
+        config.state = config.RECORDING_MOUSE_SEQ if btn.get_active() else config.READY
+        getattr(self, "modifyWidgetsWithState_"+config.state, lambda: None)()
     def _on_playMouseSeq_switch_click(self, switch, gparam):
-        if switch.get_active():
-            config.state = config.PLAYING_MOUSE_SEQ
-            self.modifyWidgetsWithState_playing_mouse_seq()
-        elif config.state != config.READY:
-            config.state = config.TASK_JUST_STOPPED
+        config.state = config.PLAYING_MOUSE_SEQ if switch.get_active() else config.READY
+        getattr(self, "modifyWidgetsWithState_"+config.state, lambda: None)()
     # kbm mapping related buttons and switch click callbacks
     def _on_recordKeyboardToMouse_click(self, btn):
-        if btn.get_active():
-            config.state = config.RECORDING_KBM_CONNECTIONS
-            btn.set_label("Stop")
-            self.modifyWidgetsWithState_recording_kbm_connections()
-        elif config.state != config.READY:
-            config.state = config.TASK_JUST_STOPPED
-            btn.set_label("Record map")
+        config.state = config.RECORDING_KBM_CONNECTIONS if btn.get_active() else config.READY
+        getattr(self, "modifyWidgetsWithState_"+config.state, lambda: None)()
     def _on_kbm_map_button_click(self, btn):
         txt = '  '.join(f'{key}' for key in config.currentPreset['kbmMap'].keys())
         self.openDialog(
@@ -221,15 +208,12 @@ class AutOMGWindow(Gtk.Window):
             text=txt
         )
     def _on_playKeyboardToMouseSwitch_click(self, switch, gparam):
-        if switch.get_active():
-            config.state = config.PLAYING_KBM_CONNECTIONS
-            self.modifyWidgetsWithState_playing_kbm_connections()
-        elif config.state != config.READY:
-            config.state = config.TASK_JUST_STOPPED
-
+        config.state = config.PLAYING_KBM_CONNECTIONS if switch.get_active() else config.READY
+        getattr(self, "modifyWidgetsWithState_"+config.state, lambda: None)()
     # disable or enable widgets related
     def modifyWidgetsWithState_recording_mouse_seq(self):
         self._recordMouseSeq_box.set_sensitive(True)
+        self._recordMouseSeq_button.set_label("Stop")
         self._menu.set_sensitive(False)
         self._record_kbm_box.set_sensitive(False)
         self._playKBM_box.set_sensitive(False)
@@ -246,6 +230,7 @@ class AutOMGWindow(Gtk.Window):
         self.statusBar.push(self.context_id, "Playing mouse events")
     def modifyWidgetsWithState_recording_kbm_connections(self):
         self._record_kbm_box.set_sensitive(True)
+        self._recordKeyboardToMouse_button.set_label("Stop")
         self._menu.set_sensitive(False)
         self._recordMouseSeq_box.set_sensitive(False)
         self._playMSeq_box.set_sensitive(False)
@@ -263,17 +248,17 @@ class AutOMGWindow(Gtk.Window):
     def modifyWidgetsWithState_ready(self):
         self._menu.set_sensitive(True)
         self._recordMouseSeq_box.set_sensitive(True)
+        self._recordMouseSeq_button.set_label("Record")
+        self._recordMouseSeq_button.set_active(False)
         self._playMSeq_box.set_sensitive(True)
         self._record_kbm_box.set_sensitive(True)
+        self._recordKeyboardToMouse_button.set_label("Record")
+        self._recordKeyboardToMouse_button.set_active(False)
         self._playKBM_box.set_sensitive(True)
         self._playMouseSeq_switch.set_active(False)
         self._playKeyboardToMouse_switch.set_active(False)
-    def modifyWidgetsWithState_task_just_stopped(self):
-        self._menu.set_sensitive(False)
-        self._recordMouseSeq_box.set_sensitive(False)
-        self._record_kbm_box.set_sensitive(False)
-        self._playMSeq_box.set_sensitive(False)
-        self._playKBM_box.set_sensitive(False)
+        self.statusBar.pop(self.context_id)
+        self.statusBar.push(self.context_id, "Ready")
 
     # menu bar callbacks
     def _save_preset(self, widget):
@@ -411,7 +396,9 @@ class AutOMGWindow(Gtk.Window):
         self.openDialog(
             title="Usage", 
             messageType=Gtk.MessageType.INFO,
-            text="You can record mouse events (movement, clicks and drags) using the 'Record' button.\n\n"+
+            text="You can record mouse events (movement, clicks and drags) using the 'Record' button."+
+            " You are going to append your mouse events to the end of the current sequence already recorded."+
+            " If you want to clear the sequence AND the keyboard-mouse mapping, please click on File -> Reset preset.\n\n"+
             "Samples: how many mouse movement samples per 2 seconds. If zero only clicks and drags will be recorded.\n\n"+
             "Times: how many times the recorded sequence will be played. If zero it will play forever.\n\n"+
             "Click on Play switch to start, then, if needed, 'Esc' key on keyboard to stop."
@@ -426,6 +413,7 @@ class AutOMGWindow(Gtk.Window):
             " The mapping between these two actions are automatically saved. Click the Stop button to stop recording.\n\n"+
             "Map button: you can see a list of keys already mapped.\n\n"+
             "Start and stop the mapping mode using the switch.\n\n"+
+            " If you want to clear the keyboard-mouse mapping AND the recorded mouse sequence, please click on File -> Reset preset.\n\n"
             "Note: the keyboard actions are propagated to the system."
         )
 

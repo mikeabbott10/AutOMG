@@ -1,11 +1,12 @@
 import mygui, mouse_sequence, key_map, config
 import copy, threading
 from time import sleep
-
+from pynput.keyboard import Listener as keyboardListener
+from pynput.mouse import Listener as mouseListener
 from gi.repository import GObject as gobject
 gobject.threads_init()
 
-import sys
+#import sys
 
 class _IdleObject(gobject.GObject):
     """
@@ -61,24 +62,18 @@ class Main(threading.Thread, _IdleObject):
             try:
                 if config.state == config.RECORDING_MOUSE_SEQ:
                     mouse_sequence.start_recording(self)
-                    config.state = config.TASK_JUST_STOPPED
                 elif config.state == config.PLAYING_MOUSE_SEQ:
                     mouse_sequence.play_sequence(self)
-                    config.state = config.TASK_JUST_STOPPED
+                    if config.state != config.READY: # get ready state programmatically
+                        self.get_ready_state()
                 elif config.state == config.RECORDING_KBM_CONNECTIONS:
                     key_map.start_recording(self)
-                    config.state = config.TASK_JUST_STOPPED
                 elif config.state == config.PLAYING_KBM_CONNECTIONS:
                     key_map.play_kbm_map(self)
-                    config.state = config.TASK_JUST_STOPPED
-                if config.state == config.TASK_JUST_STOPPED:
-                    self.emit('update-gui', "Thinking about life...")
-                    sleep(1.0) # be sure keyboard or mouse event queue is ready
-                    config.state = config.READY
-                    self.emit('update-gui', "Ready")
+                    if config.state != config.READY: # get ready state programmatically
+                        self.get_ready_state()
             except (config.InvalidPreset, TypeError):
-                config.state = config.READY
-                self.emit('update-gui', "Ready")
+                self.get_ready_state()
                 self.emit("open-dialog",
                     "Wrong preset format",
                     self.gui.Gtk.MessageType.ERROR,
@@ -86,8 +81,7 @@ class Main(threading.Thread, _IdleObject):
                 config.resetCurrentPreset(None)
             except Exception as exc_obj:
                 import traceback
-                config.state = config.READY
-                self.emit('update-gui', "Ready")
+                self.get_ready_state()
                 self.emit("open-exception-dialog",
                     "Unknown error",
                     ''.join(traceback.format_exception(None, exc_obj, exc_obj.__traceback__)
@@ -95,6 +89,10 @@ class Main(threading.Thread, _IdleObject):
                 )
             sleep(0.1) # keeping cpu calm :P
         #print(sys.exc_info())
+
+    def get_ready_state(self):
+        config.state = config.READY
+        self.emit('update-gui', "Ready")
 
     # open dialog
     def _openDialog(self, thread, title, messageType, text):
@@ -112,6 +110,7 @@ class Main(threading.Thread, _IdleObject):
 
     # quit callback
     def _quit(self, sender, event):
+        self.get_ready_state()
         if self.gui.quit_cb(self.lastPreset != config.currentPreset):
             self.stop()
             self.gui.Gtk.main_quit()
